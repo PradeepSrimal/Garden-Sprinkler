@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Garden Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    .status, .auto-status { margin: 10px 0; font-size: 1.1em; }
+    .manual-control { margin: 20px 0; }
+    #moistureChart { width: 100%; max-width: 700px; }
+    .alert { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Smart Garden Dashboard</h1>
+
+  <div class="auto-status">
+    Current time: <span id="nowTime">--:--:--</span><br>
+    <span id="autoModeStatus"></span>
+  </div>
+
+  <div class="status">
+    Soil 1: <span id="moisture1">--</span><br>
+    Soil 2: <span id="moisture2">--</span><br>
+    Temperature: <span id="temp">--</span> &deg;C<br>
+    Humidity: <span id="humid">--</span> %<br>
+    Pump Status: <span id="pumpStatus">--</span>
+    <span id="pushAlert" class="alert"></span>
+  </div>
+
+  <div class="manual-control">
+    <button onclick="controlPump('ON')">Turn Pump ON</button>
+    <button onclick="controlPump('OFF')">Turn Pump OFF</button>
+  </div>
+
+  <h2>Historical Moisture Data</h2>
+  <canvas id="moistureChart"></canvas>
+
+  <script>
+    // =========== CONFIGURATION ===========
+    const mqtt_host = 'wss://your-account.hivemq.cloud:8884/mqtt';
+    const mqtt_options = {username: "YOUR_HIVEMQ_USERNAME", password: "YOUR_HIVEMQ_PASSWORD"};
+    const topic_sensor = "garden/sensors";
+    const topic_pump   = "garden/pump";
+    const topic_cmd    = "garden/cmd";
+    const waterStartH = 6, waterEndH = 9;
+
+    // =========== MQTT CONNECTION ===========
+    const client = mqtt.connect(mqtt_host, mqtt_options);
+    client.on('connect', function () {
+      client.subscribe(topic_sensor);
+      client.subscribe(topic_pump);
+    });
+
+    // =========== PUSH NOTIFICATIONS ===========
+    if ("Notification" in window && Notification.permission !== "granted") Notification.requestPermission();
+    function notifyUser(msg) {
+      document.getElementById("pushAlert").innerText = msg;
+      if (Notification.permission === "granted") new Notification(msg);
+      setTimeout(() => { document.getElementById("pushAlert").innerText = ""; }, 8000);
+    }
+
+    // =========== CHART ===========
+    let chart, timestamps = [], moisture1s = [], moisture2s = [];
+    function initChart() {
+      chart = new Chart(document.getElementById('moistureChart'), {
+        type: 'line',
+        data: {
+          labels: timestamps,
+          datasets: [
+            {label: 'Soil 1', data: moisture1s, borderColor: 'green', fill: false},
+            {label: 'Soil 2', data: moisture2s, borderColor: 'blue', fill: false}
+          ]
+        },
+        options: {scales: {x: {title: {display: true, text: "Time"}}}}
+      });
+    }
+    window.onload = function() {
+      initChart();
+      // Optionally load history via API, omitted here
+      updateTimeAndAutoStatus();
+      setInterval(updateTimeAndAutoStatus, 1000);
+    }
+
+    // =========== MQTT MESSAGE HANDLING ===========
+    client.on('message', function (topic, message) {
+      if (topic === topic_sensor) {
+        let data = JSON.parse(message);
+        let now = new Date().toLocaleTimeString();
+        document.getElementById('moisture1').innerText = data.moisture1;
+        document.getElementById('moisture2').innerText = data.moisture2;
+        document.getElementById('temp').innerText = data.temp;
+        document.getElementById('humid').innerText = data.humid;
+        timestamps.push(now); if (timestamps.length > 50) timestamps.shift();
+        moisture1s.push(data.moisture1); if (moisture1s.length > 50) moisture1s.shift();
+        moisture2s.push(data.moisture2); if (moisture2s.length > 50) moisture2s.shift();
+        chart.update();
+        if (data.moisture1 < 2000 || data.moisture2 < 2000)
+          notifyUser("Moisture low! Watering will happen in morning hours.");
+      }
+      if (topic === topic_pump) {
+        document.getElementById('pumpStatus').innerText = message;
+        if (message === "ON") notifyUser("Pump turned ON!");
+        if (message === "OFF") notifyUser("Pump turned OFF!");
+      }
+    });
+
+    // =========== MANUAL CONTROL ===========
+    function controlPump(cmd) { client.publish(topic_cmd, cmd); }
+
+    // =========== AUTO MODE TIME DISPLAY ===========
+    function updateTimeAndAutoStatus() {
+      const now = new Date();
+      const hour = now.getHours();
+      document.getElementById('nowTime').textContent =
+          now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      if (hour >= waterStartH && hour < waterEndH) {
+        document.getElementById('autoModeStatus').innerHTML =
+          `<b>Automatic watering is <span style="color:green">ACTIVE</span> now (morning window)</b>`;
+      } else {
+        document.getElementById('autoModeStatus').innerHTML =
+          `<b>Automatic watering is <span style="color:orangered">INACTIVE</span> (outside morning window)</b>`;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -26,10 +26,10 @@
 
 <!-- Sensor Readings -->
 <div class="card">
-  <div><span class="label">Moisture 1:</span> <span id="m1">--</span></div>
-  <div><span class="label">Moisture 2:</span> <span id="m2">--</span></div>
+  <div><span class="label">Moisture 1:</span> <span id="m1">--</span>%</div>
+  <div><span class="label">Moisture 2:</span> <span id="m2">--</span>%</div>
   <div><span class="label">Temperature:</span> <span id="temp">--</span> °C</div>
-  <div><span class="label">Humidity:</span> <span id="humid">--</span> %</div>
+  <div><span class="label">Humidity:</span> <span id="humid">--</span>%</div>
 </div>
 
 <!-- Pump Controls -->
@@ -52,7 +52,7 @@
 </div>
 
 <script>
-  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt';
+  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt'; // Update this!
   const options = {
     username: 'psdayananda',
     password: '0619Dayananda',
@@ -64,7 +64,7 @@
   const client = mqtt.connect(mqttHost, options);
 
   client.on('connect', () => {
-    console.log('Connected to MQTT broker');
+    console.log('✅ Connected to MQTT broker');
     client.subscribe('garden/sensors');
     client.subscribe('garden/pump');
   });
@@ -102,30 +102,61 @@
           {
             label: label1,
             borderColor: color1,
-            backgroundColor: color1 + "20",
+            backgroundColor: color1 + '33',
             fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 6,
             data: []
           },
           {
             label: label2,
             borderColor: color2,
-            backgroundColor: color2 + "20",
+            backgroundColor: color2 + '33',
             fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 6,
             data: []
           }
         ]
       },
       options: {
-        animation: false,
         responsive: true,
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: { display: true, text: yLabel }
-          }
+        animation: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
         },
         plugins: {
-          legend: { position: 'top' }
+          legend: {
+            position: 'top',
+            labels: {
+              font: { size: 14, weight: 'bold' }
+            }
+          },
+          tooltip: {
+            backgroundColor: '#333',
+            titleColor: '#fff',
+            bodyColor: '#fff'
+          }
+        },
+        scales: {
+          x: {
+            ticks: { font: { size: 12 }, color: '#444' },
+            grid: { color: '#eee' }
+          },
+          y: {
+            beginAtZero: true,
+            max: yLabel.includes('%') ? 100 : undefined,
+            title: {
+              display: true,
+              text: yLabel,
+              font: { size: 14, weight: 'bold' }
+            },
+            ticks: { font: { size: 12 }, color: '#444' },
+            grid: { color: '#eee' }
+          }
         }
       }
     });
@@ -143,7 +174,7 @@
       chart.data.datasets[1].data.shift();
     }
 
-    chart.update();
+    chart.update('none');
   }
 
   let moistureChart, tempChart;
@@ -151,11 +182,11 @@
   window.onload = () => {
     moistureChart = createChart(
       document.getElementById('moistureChart'),
-      'Moisture 1',
-      'Moisture 2',
+      'Moisture 1 (%)',
+      'Moisture 2 (%)',
       '#0077be',
       '#00cc66',
-      'Analog Value'
+      'Moisture (%)'
     );
 
     tempChart = createChart(

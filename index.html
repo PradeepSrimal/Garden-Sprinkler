@@ -23,6 +23,8 @@
 <body>
 
 <h1>🌱 Smart Garden Dashboard</h1>
+<p><strong>📅 Date:</strong> <span id="date">--</span> |
+<strong>⏰ Time:</strong> <span id="time">--</span></p>
 
 <!-- Sensor Readings -->
 <div class="card">
@@ -52,10 +54,10 @@
 </div>
 
 <script>
-  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt'; // Update this!
+  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt'; 
   const options = {
-    username: 'psdayananda',
-    password: '0619Dayananda',
+    username: 'psdayananda', //
+    password: '0619Dayananda', // 
     connectTimeout: 5000,
     reconnectPeriod: 2000,
     clean: true,
@@ -197,7 +199,17 @@
       '#0099cc',
       'Value'
     );
+
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
   };
+
+  // ==== Date/Time Display ====
+  function updateDateTime() {
+    const now = new Date();
+    document.getElementById('date').innerText = now.toLocaleDateString();
+    document.getElementById('time').innerText = now.toLocaleTimeString();
+  }
 </script>
 
 </body>

@@ -1,129 +1,173 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
   <title>Smart Garden Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    .status, .auto-status { margin: 10px 0; font-size: 1.1em; }
-    .manual-control { margin: 20px 0; }
-    #moistureChart { width: 100%; max-width: 700px; }
-    .alert { color: red; font-weight: bold; }
+    body { font-family: Arial; padding: 20px; background: #f0f8ff; }
+    .card {
+      background: #fff; border-radius: 10px; padding: 20px;
+      margin-bottom: 20px; box-shadow: 0 0 10px #ccc;
+    }
+    .label { font-weight: bold; }
+    button {
+      padding: 10px 20px; margin: 5px; border: none;
+      border-radius: 5px; cursor: pointer;
+    }
+    .on { background-color: #4CAF50; color: white; }
+    .off { background-color: #f44336; color: white; }
+    canvas { max-width: 100%; }
   </style>
 </head>
 <body>
-  <h1>Smart Garden Dashboard</h1>
 
-  <div class="auto-status">
-    Current time: <span id="nowTime">--:--:--</span><br>
-    <span id="autoModeStatus"></span>
-  </div>
+<h1>🌱 Smart Garden Dashboard</h1>
 
-  <div class="status">
-    Soil 1: <span id="moisture1">--</span><br>
-    Soil 2: <span id="moisture2">--</span><br>
-    Temperature: <span id="temp">--</span> &deg;C<br>
-    Humidity: <span id="humid">--</span> %<br>
-    Pump Status: <span id="pumpStatus">--</span>
-    <span id="pushAlert" class="alert"></span>
-  </div>
+<!-- Sensor Readings -->
+<div class="card">
+  <div><span class="label">Moisture 1:</span> <span id="m1">--</span></div>
+  <div><span class="label">Moisture 2:</span> <span id="m2">--</span></div>
+  <div><span class="label">Temperature:</span> <span id="temp">--</span> °C</div>
+  <div><span class="label">Humidity:</span> <span id="humid">--</span> %</div>
+</div>
 
-  <div class="manual-control">
-    <button onclick="controlPump('ON')">Turn Pump ON</button>
-    <button onclick="controlPump('OFF')">Turn Pump OFF</button>
-  </div>
+<!-- Pump Controls -->
+<div class="card">
+  <div><span class="label">Pump Status:</span> <span id="pump">--</span></div>
+  <button class="on" onclick="sendCommand('ON')">Turn ON</button>
+  <button class="off" onclick="sendCommand('OFF')">Turn OFF</button>
+</div>
 
-  <h2>Historical Moisture Data</h2>
-  <canvas id="moistureChart"></canvas>
+<!-- Moisture Chart -->
+<div class="card">
+  <h3>📉 Moisture Trend</h3>
+  <canvas id="moistureChart" height="150"></canvas>
+</div>
 
-  <script>
-    // =========== CONFIGURATION ===========
-    const mqtt_host = 'wss://ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt';
-    const mqtt_options = {username: "psdayananda", password: "0619Dayananda"};
-    const topic_sensor = "garden/sensors";
-    const topic_pump   = "garden/pump";
-    const topic_cmd    = "garden/cmd";
-    const waterStartH = 6, waterEndH = 9;
+<!-- Temperature and Humidity Chart -->
+<div class="card">
+  <h3>🌡️ Temperature & Humidity</h3>
+  <canvas id="tempChart" height="150"></canvas>
+</div>
 
-    // =========== MQTT CONNECTION ===========
-    const client = mqtt.connect(mqtt_host, mqtt_options);
-    client.on('connect', function () {
-      client.subscribe(topic_sensor);
-      client.subscribe(topic_pump);
-    });
+<script>
+  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt';
+  const options = {
+    username: 'psdayananda',
+    password: '0619Dayananda',
+    connectTimeout: 5000,
+    reconnectPeriod: 2000,
+    clean: true,
+  };
 
-    // =========== PUSH NOTIFICATIONS ===========
-    if ("Notification" in window && Notification.permission !== "granted") Notification.requestPermission();
-    function notifyUser(msg) {
-      document.getElementById("pushAlert").innerText = msg;
-      if (Notification.permission === "granted") new Notification(msg);
-      setTimeout(() => { document.getElementById("pushAlert").innerText = ""; }, 8000);
+  const client = mqtt.connect(mqttHost, options);
+
+  client.on('connect', () => {
+    console.log('Connected to MQTT broker');
+    client.subscribe('garden/sensors');
+    client.subscribe('garden/pump');
+  });
+
+  client.on('message', (topic, message) => {
+    if (topic === 'garden/sensors') {
+      const data = JSON.parse(message.toString());
+      const time = new Date().toLocaleTimeString();
+
+      document.getElementById('m1').innerText = data.moisture1;
+      document.getElementById('m2').innerText = data.moisture2;
+      document.getElementById('temp').innerText = data.temp.toFixed(1);
+      document.getElementById('humid').innerText = data.humid.toFixed(1);
+
+      updateChart(moistureChart, time, [data.moisture1, data.moisture2]);
+      updateChart(tempChart, time, [data.temp, data.humid]);
     }
 
-    // =========== CHART ===========
-    let chart, timestamps = [], moisture1s = [], moisture2s = [];
-    function initChart() {
-      chart = new Chart(document.getElementById('moistureChart'), {
-        type: 'line',
-        data: {
-          labels: timestamps,
-          datasets: [
-            {label: 'Soil 1', data: moisture1s, borderColor: 'green', fill: false},
-            {label: 'Soil 2', data: moisture2s, borderColor: 'blue', fill: false}
-          ]
+    if (topic === 'garden/pump') {
+      document.getElementById('pump').innerText = message.toString();
+    }
+  });
+
+  function sendCommand(cmd) {
+    client.publish('garden/cmd', cmd);
+  }
+
+  // ==== Chart Functions ====
+  function createChart(ctx, label1, label2, color1, color2, yLabel) {
+    return new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: label1,
+            borderColor: color1,
+            backgroundColor: color1 + "20",
+            fill: true,
+            data: []
+          },
+          {
+            label: label2,
+            borderColor: color2,
+            backgroundColor: color2 + "20",
+            fill: true,
+            data: []
+          }
+        ]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: yLabel }
+          }
         },
-        options: {scales: {x: {title: {display: true, text: "Time"}}}}
-      });
-    }
-    window.onload = function() {
-      initChart();
-      // Optionally load history via API, omitted here
-      updateTimeAndAutoStatus();
-      setInterval(updateTimeAndAutoStatus, 1000);
-    }
-
-    // =========== MQTT MESSAGE HANDLING ===========
-    client.on('message', function (topic, message) {
-      if (topic === topic_sensor) {
-        let data = JSON.parse(message);
-        let now = new Date().toLocaleTimeString();
-        document.getElementById('moisture1').innerText = data.moisture1;
-        document.getElementById('moisture2').innerText = data.moisture2;
-        document.getElementById('temp').innerText = data.temp;
-        document.getElementById('humid').innerText = data.humid;
-        timestamps.push(now); if (timestamps.length > 50) timestamps.shift();
-        moisture1s.push(data.moisture1); if (moisture1s.length > 50) moisture1s.shift();
-        moisture2s.push(data.moisture2); if (moisture2s.length > 50) moisture2s.shift();
-        chart.update();
-        if (data.moisture1 < 2000 || data.moisture2 < 2000)
-          notifyUser("Moisture low! Watering will happen in morning hours.");
-      }
-      if (topic === topic_pump) {
-        document.getElementById('pumpStatus').innerText = message;
-        if (message === "ON") notifyUser("Pump turned ON!");
-        if (message === "OFF") notifyUser("Pump turned OFF!");
+        plugins: {
+          legend: { position: 'top' }
+        }
       }
     });
+  }
 
-    // =========== MANUAL CONTROL ===========
-    function controlPump(cmd) { client.publish(topic_cmd, cmd); }
+  function updateChart(chart, label, values) {
+    const maxPoints = 20;
+    chart.data.labels.push(label);
+    chart.data.datasets[0].data.push(values[0]);
+    chart.data.datasets[1].data.push(values[1]);
 
-    // =========== AUTO MODE TIME DISPLAY ===========
-    function updateTimeAndAutoStatus() {
-      const now = new Date();
-      const hour = now.getHours();
-      document.getElementById('nowTime').textContent =
-          now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-      if (hour >= waterStartH && hour < waterEndH) {
-        document.getElementById('autoModeStatus').innerHTML =
-          `<b>Automatic watering is <span style="color:green">ACTIVE</span> now (morning window)</b>`;
-      } else {
-        document.getElementById('autoModeStatus').innerHTML =
-          `<b>Automatic watering is <span style="color:orangered">INACTIVE</span> (outside morning window)</b>`;
-      }
+    if (chart.data.labels.length > maxPoints) {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+      chart.data.datasets[1].data.shift();
     }
-  </script>
+
+    chart.update();
+  }
+
+  let moistureChart, tempChart;
+
+  window.onload = () => {
+    moistureChart = createChart(
+      document.getElementById('moistureChart'),
+      'Moisture 1',
+      'Moisture 2',
+      '#0077be',
+      '#00cc66',
+      'Analog Value'
+    );
+
+    tempChart = createChart(
+      document.getElementById('tempChart'),
+      'Temperature (°C)',
+      'Humidity (%)',
+      '#ff6600',
+      '#0099cc',
+      'Value'
+    );
+  };
+</script>
+
 </body>
 </html>

@@ -4,60 +4,241 @@
   <title>Smart Garden Dashboard</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial; padding: 20px; background: #f0f8ff; }
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      padding: 0;
+      margin: 0;
+      background: linear-gradient(135deg, #e3ffe9 0%, #e6f0ff 100%);
+      min-height: 100vh;
+      color: #222;
+    }
+    .container {
+      max-width: 680px;
+      margin: 40px auto 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.4rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #0077be, #00cc66 65%, #ff6600 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .datetime {
+      text-align: center;
+      font-size: 1.1rem;
+      color: #555;
+      margin-bottom: 28px;
+    }
     .card {
-      background: #fff; border-radius: 10px; padding: 20px;
-      margin-bottom: 20px; box-shadow: 0 0 10px #ccc;
+      background: #fff;
+      border-radius: 18px;
+      padding: 32px 24px 24px 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 8px 32px 0 rgba(0,128,167,0.09), 0 2px 4px 0 rgba(80,90,130,0.04);
+      transition: box-shadow .2s;
     }
-    .label { font-weight: bold; }
+    .card:hover {
+      box-shadow: 0 12px 38px 0 rgba(40,140,87,0.15), 0 4px 16px 0 rgba(80,90,130,0.07);
+    }
+    .sensors {
+      display: flex;
+      gap: 38px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+    .reading {
+      flex: 1 1 130px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      font-size: 1.15rem;
+    }
+    .reading .label {
+      font-weight: 600;
+      color: #0099cc;
+      width: 112px;
+      flex-shrink: 0;
+      letter-spacing: 0.01em;
+      margin-right: 5px;
+    }
+    .reading .value {
+      font-weight: 700;
+      color: #333;
+      margin-right: 4px;
+      font-size: 1.23rem;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .pump-status {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #ff6600;
+      background: #fff6ee;
+      padding: 6px 16px;
+      border-radius: 8px;
+      display: inline-block;
+      letter-spacing: 0.01em;
+      min-width: 80px;
+      text-align: center;
+      transition: background .15s, color .15s;
+    }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
     button {
-      padding: 10px 20px; margin: 5px; border: none;
-      border-radius: 5px; cursor: pointer;
+      position: relative; /* for ripple */
+      overflow: hidden;   /* for ripple */
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 26px;
+      border: none;
+      border-radius: 28px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      box-shadow: 0 1px 7px 0 rgba(80,90,130,0.07);
+      cursor: pointer;
+      outline: none;
+      background: #f3f7fa;
+      color: #11896c;
+      transition: background .18s, color .18s, transform 0.15s ease, box-shadow 0.15s ease;
+      border: 2px solid #00cc66;
+      user-select: none;
     }
-    .on { background-color: #4CAF50; color: white; }
-    .off { background-color: #f44336; color: white; }
-    canvas { max-width: 100%; }
+    button.on {
+      background: linear-gradient(90deg, #00cc66 60%, #4caf50 100%);
+      color: #fff;
+      border-color: #00cc66;
+    }
+    button.off {
+      background: linear-gradient(90deg, #f44336 60%, #ff8a65 100%);
+      color: #fff;
+      border-color: #f44336;
+    }
+    button:hover:not(:active) {
+      filter: brightness(1.05) saturate(1.1);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+    button:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    /* Ripple effect styles */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.5);
+      animation: ripple-effect 0.6s linear;
+      pointer-events: none;
+      transform: scale(0);
+      opacity: 1;
+      width: 100px;
+      height: 100px;
+      margin-left: -50px; /* half width */
+      margin-top: -50px;  /* half height */
+      z-index: 10;
+    }
+    @keyframes ripple-effect {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+    h3 {
+      font-size: 1.18rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #0077be;
+      letter-spacing: 0.01em;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    canvas {
+      max-width: 100%;
+      background: #f7fbfd;
+      border-radius: 14px;
+      margin-top: 4px;
+    }
+    @media (max-width: 700px) {
+      .container { padding: 10px; }
+      .card { padding: 18px 8px 14px 8px; }
+      .sensors { gap: 14px; }
+      button { font-size: 1rem; padding: 10px 10px;}
+    }
   </style>
 </head>
 <body>
+<div class="container">
 
-<h1>🌱 Smart Garden Dashboard</h1>
-<p><strong>📅 Date:</strong> <span id="date">--</span> |
-<strong>⏰ Time:</strong> <span id="time">--</span></p>
+  <h1>🌱 Smart Garden Dashboard</h1>
+  <div class="datetime">
+    <span><strong>📅 Date:</strong> <span id="date">--</span></span>
+    &nbsp;|&nbsp;
+    <span><strong>⏰ Time:</strong> <span id="time">--</span></span>
+  </div>
 
-<!-- Sensor Readings -->
-<div class="card">
-  <div><span class="label">Moisture 1:</span> <span id="m1">--</span>%</div>
-  <div><span class="label">Moisture 2:</span> <span id="m2">--</span>%</div>
-  <div><span class="label">Temperature:</span> <span id="temp">--</span> °C</div>
-  <div><span class="label">Humidity:</span> <span id="humid">--</span>%</div>
+  <!-- Sensor Readings -->
+  <div class="card">
+    <div class="sensors">
+      <div class="reading"><span class="label">Moisture 1</span>
+        <span class="value" id="m1">--</span><span>%</span>
+      </div>
+      <div class="reading"><span class="label">Moisture 2</span>
+        <span class="value" id="m2">--</span><span>%</span>
+      </div>
+      <div class="reading"><span class="label">Temperature</span>
+        <span class="value" id="temp">--</span><span>°C</span>
+      </div>
+      <div class="reading"><span class="label">Humidity</span>
+        <span class="value" id="humid">--</span><span>%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pump Controls -->
+  <div class="card">
+    <div class="status-bar">
+      <span class="label" style="font-size:1.15rem;">Pump Status:</span>
+      <span class="pump-status" id="pump">--</span>
+      <div class="btn-row">
+        <button class="on" onclick="sendCommand('ON')" id="btnOn">🟢 Turn ON</button>
+        <button class="off" onclick="sendCommand('OFF')" id="btnOff">🔴 Turn OFF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Moisture Chart -->
+  <div class="card">
+    <h3>📉 Moisture Trend</h3>
+    <canvas id="moistureChart" height="150"></canvas>
+  </div>
+
+  <!-- Temperature and Humidity Chart -->
+  <div class="card">
+    <h3>🌡️ Temperature & Humidity</h3>
+    <canvas id="tempChart" height="150"></canvas>
+  </div>
 </div>
-
-<!-- Pump Controls -->
-<div class="card">
-  <div><span class="label">Pump Status:</span> <span id="pump">--</span></div>
-  <button class="on" onclick="sendCommand('ON')">Turn ON</button>
-  <button class="off" onclick="sendCommand('OFF')">Turn OFF</button>
-</div>
-
-<!-- Moisture Chart -->
-<div class="card">
-  <h3>📉 Moisture Trend</h3>
-  <canvas id="moistureChart" height="150"></canvas>
-</div>
-
-<!-- Temperature and Humidity Chart -->
-<div class="card">
-  <h3>🌡️ Temperature & Humidity</h3>
-  <canvas id="tempChart" height="150"></canvas>
-</div>
-
 <script>
-  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt'; 
+  const mqttHost = 'wss:ca41edff9611431d919663cec55eb2f2.s1.eu.hivemq.cloud:8884/mqtt';
   const options = {
-    username: 'psdayananda', //
-    password: '0619Dayananda', // 
+    username: 'psdayananda',
+    password: '0619Dayananda',
     connectTimeout: 5000,
     reconnectPeriod: 2000,
     clean: true,
@@ -87,6 +268,18 @@
 
     if (topic === 'garden/pump') {
       document.getElementById('pump').innerText = message.toString();
+      let status = message.toString().toLowerCase();
+      let badge = document.getElementById('pump');
+      if (status === 'on') {
+        badge.style.background = '#e7faec';
+        badge.style.color = '#00cc66';
+      } else if (status === 'off') {
+        badge.style.background = '#fff6ee';
+        badge.style.color = '#f44336';
+      } else {
+        badge.style.background = '#fff8e0';
+        badge.style.color = '#ff9800';
+      }
     }
   });
 
@@ -108,7 +301,7 @@
             fill: true,
             tension: 0.4,
             pointRadius: 3,
-            pointHoverRadius: 6,
+            pointHoverRadius: 7,
             data: []
           },
           {
@@ -118,7 +311,7 @@
             fill: true,
             tension: 0.4,
             pointRadius: 3,
-            pointHoverRadius: 6,
+            pointHoverRadius: 7,
             data: []
           }
         ]
@@ -126,27 +319,27 @@
       options: {
         responsive: true,
         animation: false,
-        interaction: {
-          mode: 'index',
-          intersect: false,
-        },
         plugins: {
           legend: {
             position: 'top',
             labels: {
-              font: { size: 14, weight: 'bold' }
+              font: { size: 16, weight: 'bold', family: 'Inter, Arial, sans-serif' }
             }
           },
           tooltip: {
-            backgroundColor: '#333',
+            backgroundColor: '#222e',
             titleColor: '#fff',
             bodyColor: '#fff'
           }
         },
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
         scales: {
           x: {
-            ticks: { font: { size: 12 }, color: '#444' },
-            grid: { color: '#eee' }
+            ticks: { font: { size: 13, family: 'Inter, Arial' }, color: '#555' },
+            grid: { color: '#eefaff' }
           },
           y: {
             beginAtZero: true,
@@ -154,10 +347,10 @@
             title: {
               display: true,
               text: yLabel,
-              font: { size: 14, weight: 'bold' }
+              font: { size: 16, weight: 'bold', family: 'Inter, Arial' }
             },
-            ticks: { font: { size: 12 }, color: '#444' },
-            grid: { color: '#eee' }
+            ticks: { font: { size: 13, family: 'Inter, Arial' }, color: '#555' },
+            grid: { color: '#eefaff' }
           }
         }
       }
@@ -169,13 +362,11 @@
     chart.data.labels.push(label);
     chart.data.datasets[0].data.push(values[0]);
     chart.data.datasets[1].data.push(values[1]);
-
     if (chart.data.labels.length > maxPoints) {
       chart.data.labels.shift();
       chart.data.datasets[0].data.shift();
       chart.data.datasets[1].data.shift();
     }
-
     chart.update('none');
   }
 
@@ -190,7 +381,6 @@
       '#00cc66',
       'Moisture (%)'
     );
-
     tempChart = createChart(
       document.getElementById('tempChart'),
       'Temperature (°C)',
@@ -199,9 +389,26 @@
       '#0099cc',
       'Value'
     );
-
     updateDateTime();
     setInterval(updateDateTime, 1000);
+
+    // Ripple effect on buttons
+    document.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+
+        const rect = btn.getBoundingClientRect();
+        ripple.style.left = (e.clientX - rect.left) + 'px';
+        ripple.style.top = (e.clientY - rect.top) + 'px';
+
+        btn.appendChild(ripple);
+
+        ripple.addEventListener('animationend', () => {
+          ripple.remove();
+        });
+      });
+    });
   };
 
   // ==== Date/Time Display ====
@@ -211,6 +418,5 @@
     document.getElementById('time').innerText = now.toLocaleTimeString();
   }
 </script>
-
 </body>
 </html>
